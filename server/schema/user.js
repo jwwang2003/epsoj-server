@@ -94,7 +94,7 @@ UserTC.addResolver({
   resolve: async ({ source, args, context, info }) => {
     // PRIVATE (ADMIN)
     const { req, res, _user } = context;
-    if(!_user) throw new Error('Authentication error: Must be logged in');
+    // if(!_user) throw new Error('Authentication error: Must be logged in');
 
     const user = User.findOne(args.filter);
 
@@ -109,7 +109,7 @@ UserTC.addResolver({
   resolve: async ({ source, args, context, info }) => {
     // PRIVATE (ADMIN)
     const { req, res, _user } = context;
-    if(!_user) throw new Error('Authentication error: Must be logged in');
+    // if(!_user) throw new Error('Authentication error: Must be logged in');
 
     // Array of user
     const user = User.find(args.filter, null, { skip: args.skip, sort: args.sort});
@@ -141,8 +141,59 @@ const UserQuery = {
   userCount: UserTC.getResolver("userCount"),
 };
 
+UserTC.addResolver({
+  name: "userRegisterOne",
+  args: UserTC.getResolver("createOne").args,
+  type: UserTC,
+  resolve: async ({ source, args, context, info }) => {
+    console.log(args)
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(args.record.password, salt);
+
+    const user = new User({
+      type: args.record.type,
+      firstName: args.record.firstName,
+      lastName: args.record.lastName,
+      email: args.record.email,
+      username: args.record.username,
+      password: hashedPassword,
+    });
+
+    await user.save();
+
+    return user;
+  },
+});
+
+UserTC.addResolver({
+  name: "userRegister",
+  args: UserTC.getResolver('createMany').args,
+  type: `type userRegisterPayload { createdCount: Int, error: String }`,
+  resolve: async ({ source, args, context, info }) => {
+    // PRIVATE (ADMIN)
+    const { req, res, _user } = context;
+    // if(!_user) throw new Error('Authentication error: Must be logged in');
+
+    let data = args.records;
+    const salt = await bcrypt.genSalt(10);
+
+    for (const [ind, datum] of data.entries()) {
+      data[ind].password = await bcrypt.hash(datum.password, salt);
+    }
+    
+    try {
+      await User.collection.insertMany(data);
+    } catch (err) {
+      return { createdCount: 0, error: err.message }
+    }
+   
+    return { createdCount: data.length }
+  },
+})
+
 const UserMutation = {
   userRegisterOne: UserTC.getResolver("userRegisterOne"),
+  userRegister: UserTC.getResolver("userRegister"),
   userCreateOne: UserTC.getResolver("createOne"),
   userCreateMany: UserTC.getResolver("createMany"),
   userUpdateById: UserTC.getResolver("updateById"),

@@ -48,7 +48,7 @@ async function handleAuth(req, res, next) {
     }
     return res.status(200).send({...responces.passed, type: user.type});
   }
-
+  await new Promise(resolve => setTimeout(resolve, 500));
   // Hasing & authentication
   if (await bcrypt.compare(password, user.password)) {
     const token = jwt.sign(
